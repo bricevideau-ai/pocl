@@ -1687,6 +1687,19 @@ pocl_update_event_finished (cl_int status, const char *func, unsigned line,
   cl_command_queue cq = event->queue;
   POCL_LOCK_OBJ (cq);
   POCL_LOCK_OBJ (event);
+  /* Idempotency guard: an event can sit on more than one upstream event's
+   * notify-list (e.g. a marker that depends on both a command event and a
+   * user event). When the chain fails, those upstream events can terminate
+   * concurrently and each broadcast in to finish THIS event. OpenCL event
+   * state is monotonic, so the first finisher wins; a second arrival on an
+   * already-terminal event is a no-op, not the assert-fail it used to trip.
+   * Bail under the locks we already hold (reverse-order unlock). */
+  if (event->status <= CL_COMPLETE)
+    {
+      POCL_UNLOCK_OBJ (event);
+      POCL_UNLOCK_OBJ (cq);
+      return;
+    }
   assert (event->status > CL_COMPLETE);
   if ((cq->properties & CL_QUEUE_PROFILING_ENABLE)
       && (cq->device->has_own_timer == 0))
