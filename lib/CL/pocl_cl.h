@@ -2137,6 +2137,17 @@ struct _cl_event {
 
   /* The execution status of the command this event is monitoring. */
   cl_int status;
+
+  /* Set to 1 if, at the time a sync edge to a dependency was being wired up,
+   * that dependency was already in a failed (negative) status. In that case no
+   * sync edge is created (the notifier will not broadcast again), so the
+   * failure cannot propagate through the normal pocl_broadcast -> notify path.
+   * The device submit path must check this flag and fail the command via the
+   * error cascade instead of running it. This deferral is required because the
+   * flag is set under the command-queue lock (in pocl_create_event_sync) where
+   * failing the event inline would deadlock. */
+  cl_int broken_dependency;
+
   /* implicit event = an event for pocl's internal use, not visible to user */
   char implicit_event;
 

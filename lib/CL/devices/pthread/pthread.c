@@ -218,6 +218,12 @@ pocl_pthread_submit (_cl_command_node *node, cl_command_queue cq)
   node->state = POCL_COMMAND_READY;
   if (pocl_command_is_ready (node->sync.event.event))
     {
+      /* A dependency that was already failed when its sync edge was wired up
+       * leaves the command ready with no wait_list. Fail it instead of running
+       * it on potentially freed/aborted memory. The helper unlocks and fails
+       * the event, so return immediately without unlocking again. */
+      if (pocl_command_honor_broken_dependency (node->sync.event.event))
+        return;
       pocl_update_event_submitted (node->sync.event.event);
       pthread_scheduler_push_command (node);
     }
@@ -282,6 +288,19 @@ pocl_pthread_notify (cl_device_id device, cl_event event, cl_event finished)
 
   if (pocl_command_is_ready (node->sync.event.event))
     {
+      /* The command may have become ready while still carrying a broken
+       * (already-failed at wiring time) dependency recorded on another wait
+       * edge. Fail it instead of running it. pocl_broadcast calls us with both
+       * 'event' and 'finished' locked and expects them locked on return, so
+       * replicate the unlock/fail/relock dance used for the failed-finished
+       * case above. */
+      if (event->broken_dependency)
+        {
+          pocl_unlock_events_inorder (event, finished);
+          pocl_update_event_failed (CL_FAILED, NULL, 0, event, NULL);
+          pocl_lock_events_inorder (finished, event);
+          return;
+        }
       if (event->status == CL_QUEUED)
         {
           pocl_update_event_submitted (event);

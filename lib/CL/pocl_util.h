@@ -209,6 +209,41 @@ pocl_command_is_ready(cl_event event)
   return event->wait_list == NULL;
 }
 
+POCL_EXPORT void
+pocl_update_event_failed (cl_int status,
+                          const char *func,
+                          unsigned line,
+                          cl_event event,
+                          const char *msg);
+
+/**
+ * Honor a recorded broken (already-failed) dependency on a command that has
+ * just become ready in a device submit path.
+ *
+ * \warning Call with \p event LOCKED (as the submit/notify paths hold it).
+ *
+ * If the event has a broken dependency recorded (see
+ * _cl_event::broken_dependency), this unlocks the event, fails the command via
+ * the error cascade (pocl_update_event_failed, which takes the cq + event locks
+ * itself and returns them unlocked) and returns 1. The caller must then return
+ * immediately WITHOUT unlocking the event again (it has already been unlocked
+ * and possibly freed).
+ *
+ * If there is no broken dependency, this returns 0 with the event still locked,
+ * and the caller proceeds normally.
+ */
+static inline int
+pocl_command_honor_broken_dependency (cl_event event)
+{
+  if (event->broken_dependency)
+    {
+      POCL_UNLOCK_OBJ (event);
+      pocl_update_event_failed (CL_FAILED, __func__, __LINE__, event, NULL);
+      return 1;
+    }
+  return 0;
+}
+
 typedef void (*empty_queue_callback) (cl_command_queue cq);
 
 void pocl_cl_mem_inherit_flags (cl_mem mem, cl_mem from_buffer,
