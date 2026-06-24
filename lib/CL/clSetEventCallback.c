@@ -35,10 +35,21 @@ POname(clSetEventCallback) (cl_event     event ,
     }
   else
     {
+      /* The event is already at or past the requested status, so fire the
+         callback synchronously. Retain the event across the call, mirroring
+         the asynchronous path (pocl_event_cb_push retains before queuing and
+         process_event_cb releases after): a caller may legally release its
+         own reference to the event right after registering the callback (the
+         OpenCL spec does not require clSetEventCallback to keep the event
+         alive), and another thread (e.g. the command's completion on a device
+         worker) may be releasing concurrently. Without this retain the event
+         could be freed underneath callback_function, a use-after-free. */
+      POCL_RETAIN_OBJECT_UNLOCKED (event);
       POCL_UNLOCK_OBJ (event);
-      cb_ptr->callback_function (event, cb_ptr->trigger_status, 
+      cb_ptr->callback_function (event, cb_ptr->trigger_status,
                                  cb_ptr->user_data);
       free (cb_ptr);
+      POname (clReleaseEvent) (event);
     }
   
 
