@@ -1726,6 +1726,29 @@ pocl_update_event_finished (cl_int status, const char *func, unsigned line,
     event->time_end = pocl_gettimemono_ns ();
 
   struct pocl_device_ops *ops = cq->device->ops;
+
+  /* Retire the command-buffer submission BEFORE publishing the terminal status:
+   * pocl_pthread_wait_event() checks event->status before waiting, so a thread
+   * entering clWaitForEvents() after the status write but before the retire
+   * would not wait at all, and its next clEnqueueCommandBufferKHR() would be
+   * rejected by pocl_cmdbuf_is_ready(). Ordered by the event lock held here.
+   *
+   * Only the bookkeeping; clReleaseCommandBufferKHR() stays below. It takes the
+   * buffer's OBJECT lock and, on the last reference, calls
+   * PoCLReleaseCommandQueue(), which locks the queue this function already
+   * holds -- hoisting it here would deadlock. command_buffer->mutex is a leaf
+   * lock, so taking that one here is fine. */
+  if (event->reset_command_buffer)
+    {
+      assert (event->command_buffer);
+      POCL_LOCK (event->command_buffer->mutex);
+      assert (event->command_buffer->pending > 0);
+      event->command_buffer->pending -= 1;
+      if (event->command_buffer->pending == 0)
+        event->command_buffer->state = CL_COMMAND_BUFFER_STATE_EXECUTABLE_KHR;
+      POCL_UNLOCK (event->command_buffer->mutex);
+    }
+
   event->status = status;
   if (cq->device->ops->update_event)
     ops->update_event (cq->device, event);
@@ -1783,15 +1806,12 @@ pocl_update_event_finished (cl_int status, const char *func, unsigned line,
     pocl_free_event_node (node);
   }
 
-  /* NOTE this must be called before we call broadcast, see above */
+  /* NOTE this must be called before we call broadcast, see above. Drops the
+   * reference clEnqueueCommandBufferKHR() took; on the last one this frees the
+   * buffer and locks this event's queue, so it must stay outside the locks. */
   if (event->reset_command_buffer)
   {
     assert (command_buffer);
-    POCL_LOCK (command_buffer->mutex);
-    command_buffer->pending -= 1;
-    if (command_buffer->pending == 0)
-        command_buffer->state = CL_COMMAND_BUFFER_STATE_EXECUTABLE_KHR;
-    POCL_UNLOCK (command_buffer->mutex);
     POname (clReleaseCommandBufferKHR) (command_buffer);
   }
 

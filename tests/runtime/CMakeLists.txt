@@ -47,6 +47,7 @@ set(C_PROGRAMS_TO_BUILD test_clFinish test_clGetDeviceInfo test_clGetEventInfo
   test_clSetMemObjectDestructorCallback test_dbk_jpeg
   test_cl_pocl_content_size test_cl_pocl_content_size_migration
   test_deviceside_enqueue test_command_buffer test_command_buffer_images
+  test_command_buffer_replay
   test_command_buffer_multi_device test_queue_creation_with_hints
   test_remote_discovery test_dbk_color_convert test_subgroup_queries
   test_image_normalized_conv)
@@ -163,6 +164,7 @@ add_test(NAME "runtime/test_cl_pocl_content_size" COMMAND "test_cl_pocl_content_
 add_test_pocl(NAME "runtime/test_deviceside_enqueue" COMMAND "test_deviceside_enqueue" WORKITEM_HANDLER "loopvec")
 
 add_test(NAME "runtime/test_command_buffer" COMMAND "test_command_buffer")
+add_test(NAME "runtime/test_command_buffer_replay" COMMAND "test_command_buffer_replay")
 
 add_test(NAME "runtime/test_command_buffer_images" COMMAND "test_command_buffer_images")
 
@@ -256,7 +258,8 @@ set_tests_properties( "runtime/clGetDeviceInfo" "runtime/clEnqueueNativeKernel"
   "runtime/test_buffer_migration" "runtime/test_buffer_ping_pong"
   "runtime/clSetMemObjectDestructorCallback" "runtime/test_link_error"
   "runtime/test_cl_pocl_content_size" "runtime/test_deviceside_enqueue"
-  "runtime/test_command_buffer" "runtime/test_command_buffer_images"
+  "runtime/test_command_buffer" "runtime/test_command_buffer_replay"
+  "runtime/test_command_buffer_images"
   "runtime/test_command_buffer_multi_device"
   "runtime/test_device_address" "runtime/test_svm"
   "runtime/test_device_address" "runtime/test_svm"
@@ -279,7 +282,7 @@ set_tests_properties(
   "runtime/test_buffer-image-copy"
   "runtime/clGetSupportedImageFormats"
   "runtime/clEnqueueNativeKernel"
-  "runtime/test_command_buffer"
+  "runtime/test_command_buffer" "runtime/test_command_buffer_replay"
   "runtime/test_command_buffer_images"
   "runtime/test_command_buffer_multi_device"
   "runtime/test_device_address"
