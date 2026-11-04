@@ -46,6 +46,11 @@ Runtime fixes & features
   `clEnqueueCommandBufferKHR` only need to target the same device, and
   commands recorded with an in-order queue stay ordered on any queue.
 
+* `CL_COMMAND_BUFFER_DEVICE_SIDE_SYNC_KHR` is now accepted by
+  `clCreateCommandBufferKHR` when all the devices of the queues can
+  synchronize device-side; CPU devices report themselves in
+  `CL_DEVICE_COMMAND_BUFFER_SYNC_DEVICES_KHR`.
+
 ===========================
 Driver-specific features
 ===========================
